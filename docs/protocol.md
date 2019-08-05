@@ -54,9 +54,9 @@ The following lists the parameters configurable by each version of the Sidetree 
 A [_DID Document_](https://w3c-ccg.github.io/did-spec/#ex-2-minimal-self-managed-did-document
 ) is a document containing information about a DID, such as the public keys of the DID owner and service endpoints used. Sidetree protocol enables the creation of, lookup for, and updates to DID Documents through _Sidetree operations_. All operations are authenticated with a signature using a key specified in the corresponding DID Document.
 
-An update to a DID Document is specified as a [_JSON patch_](https://tools.ietf.org/html/rfc6902) so that only differences from the previous version of the DID Document is specified in each operation.
+An update operation to a DID Document contains only the changes from the previous version of the DID Document.
 
-> NOTE: Create and recover operations require a complete DID Document as input as opposed to a _JSON patch_.
+> NOTE: Create and recover operations require a complete DID Document as input.
 
 ### Sidetree Operation Hashes
 
@@ -149,10 +149,9 @@ A Sidetree transaction represents a batch of operations to be processed by Sidet
    1. All DID unique suffixes specified in the anchor file must be unique.
 1. _Batch file_ validation rules:
    1. The batch file must strictly follow the schema defined by the protocol. A batch file with missing or additional properties is invalid.
-   1. The batch file fetched from CAS must not exceed the maximum allowed batch file size.
+   1. The batch file must not exceed the maximum allowed batch file size.
    1. Must use the hashing algorithm specified by the protocol.
    1. DID unique suffixes found in the batch file must match DID unique suffixes found in anchor file exactly and in same order.
-   1. The operation batch size must not exceed the maximum size specified by the protocol.
 1. The transaction must meet the proof-of-fee requirements defined by the protocol.
 1. Every operation in the batch file must adhere to the following requirements to be considered a _well-formed operation_, one _not-well-formed_ operation in the batch file renders the entire transaction invalid:
 
@@ -375,7 +374,7 @@ POST / HTTP/1.1
     "kid": "ID of the key used to sign the update payload.",
     "alg": "ES256K"
   },
-  "payload": "Encoded update payload JSON object define by the schema below.",
+  "payload": "Encoded update payload JSON object defined by the schema below.",
   "signature": "Encoded signature."
 }
 ```
@@ -384,22 +383,139 @@ POST / HTTP/1.1
 ```json
 {
   "didUniqueSuffix": "The unique suffix of the DID",
-  "operationNumber": "The number incremented from the last change version number. 1 if first change.",
   "previousOperationHash": "The hash of the previous operation made to the DID Document.",
-  "patch": "An RFC 6902 JSON patch to the current DID Document",
+  "patches": ["An array of patches each must adhere to the patch schema defined below."
+  ]
 }
 ```
 
-#### Update payload schema example
+#### Update patch schema
+##### Add public keys
 ```json
 {
-  "didUniqueSuffix": "QmWd5PH6vyRH5kMdzZRPBnf952dbR4av3Bd7B2wBqMaAcf",
-  "operationNumber": 12,
-  "previousOperationHash": "QmbJGU4wNti6vNMGMosXaHbeMHGu9PkAUZtVBb2s2Vyq5d",
-  "patch": [{
-    "op": "remove",
-    "path": "/publicKey/0"
-  }]
+  "action": "add-public-keys",
+  "publicKeys": [
+    {
+      "id": "A string that begins with '#'.",
+      "type": "Secp256k1VerificationKey2018 | RsaVerificationKey2018",
+      "publicKeyHex": "Must be compressed format (66 chars) for Secp256k1VerificationKey2018, else any property can be used.",
+    }
+  ]
+}
+```
+
+Example:
+```json
+{
+  "action": "add-public-keys",
+  "publicKeys": [
+    {
+      "id": "#key1",
+      "type": "Secp256k1VerificationKey2018",
+      "publicKeyHex": "0268ccc80007f82d49c2f2ee25a9dae856559330611f0a62356e59ec8cdb566e69"
+    },
+    {
+      "id": "#key2",
+      "type": "RsaVerificationKey2018",
+      "publicKeyPem": "-----BEGIN PUBLIC KEY...END PUBLIC KEY-----"
+    }
+  ]
+}
+```
+
+##### Remove public keys
+```json
+{
+  "action": "remove-public-keys",
+  "publicKeys": ["Array of 'id' property of public keys to remove."]
+}
+```
+
+Example:
+```json
+{
+  "action": "remove-public-keys",
+  "publicKeys": ["#key1", "#key2"]
+}
+```
+
+##### Add service endpoints
+```json
+{
+  "action": "add-service-endpoints",
+  "serviceType": "IdentityHub",
+  "serviceEndpoints": [
+    "Array of DID to add."
+  ]
+}
+```
+
+Example:
+```json
+{
+  "action": "add-service-endpoints",
+  "serviceType": "IdentityHub",
+  "serviceEndpoints": [
+    "did:sidetree:EiDk2RpPVuC4wNANUTn_4YXJczjzi10zLG1XE4AjkcGOLA",
+    "did:sidetree:EiBQilmIz0H8818Cmp-38Fl1ao03yOjOh03rd9znsK2-8A"
+  ]
+}
+```
+
+##### Remove service endpoints
+```json
+{
+  "action": "remove-service-endpoints",
+  "serviceType": "IdentityHub",
+  "serviceEndpoints": [
+    "Array of DID to remove."
+  ]
+}
+```
+
+Example:
+```json
+{
+  "action": "remove-service-endpoints",
+  "serviceType": "IdentityHub",
+  "serviceEndpoints": [
+    "did:sidetree:EiDk2RpPVuC4wNANUTn_4YXJczjzi10zLG1XE4AjkcGOLA",
+    "did:sidetree:EiBQilmIz0H8818Cmp-38Fl1ao03yOjOh03rd9znsK2-8A"
+  ]
+}
+```
+
+
+#### Update payload example
+```json
+{
+  "didUniqueSuffix": "EiBQilmIz0H8818Cmp-38Fl1ao03yOjOh03rd9znsK2-8A",
+  "previousOperationHash": "EiBQilmIz0H8818Cmp-38Fl1ao03yOjOh03rd9znsK2-8A",
+  "patches": [
+    {
+      "action": "add-public-keys",
+      "publicKeys": [
+        {
+          "id": "#key1",
+          "type": "Secp256k1VerificationKey2018",
+          "publicKeyHex": "0268ccc80007f82d49c2f2ee25a9dae856559330611f0a62356e59ec8cdb566e69"
+        },
+        {
+          "id": "#key2",
+          "type": "RsaVerificationKey2018",
+          "publicKeyPem": "-----BEGIN PUBLIC KEY...END PUBLIC KEY-----"
+        }
+      ]
+    },
+    {
+      "action": "remove-service-endpoints",
+      "serviceType": "IdentityHub",
+      "serviceEndpoints": [
+        "did:sidetree:EiBJz4qd3Lvof3boqBQgzhMDYXWQ_wZs67jGiAhFCiQFjw",
+        "did:sidetree:EiAJ6AlyUPaEOxXk-AdXoEikeTf7DhcXvF61MfgnjJgazg"
+      ]
+    }
+  ]
 }
 ```
 

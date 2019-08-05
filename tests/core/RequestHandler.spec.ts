@@ -127,7 +127,6 @@ describe('RequestHandler', () => {
     const response = await requestHandler.handleOperationRequest(createRequest);
     const httpStatus = Response.toHttpStatus(response.status);
 
-    // TODO: more validations needed as implementation becomes more complete.
     expect(httpStatus).toEqual(400);
   });
 
@@ -191,17 +190,18 @@ describe('RequestHandler', () => {
     await batchWriter.writeOperationBatch();
 
     // Create a request that will delete the 2nd public key.
-    const jsonPatch = [{
-      op: 'remove',
-      path: '/publicKey/1'
-    }];
+    const patches = [
+      {
+        action: 'remove-public-keys',
+        publicKeys: ['#key1', '#key2']
+      }
+    ];
 
     // Construct update payload.
     const updatePayload = {
       didUniqueSuffix,
-      operationNumber: 1,
-      patch: jsonPatch,
-      previousOperationHash: didUniqueSuffix
+      previousOperationHash: didUniqueSuffix,
+      patches
     };
 
     const request = await OperationGenerator.generateUpdateOperationBuffer(updatePayload, publicKey.id, privateKey);
